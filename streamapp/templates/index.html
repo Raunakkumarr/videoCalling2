@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/images/logo.png" type="image/png" />
+    <title>Video Call</title>
+    <link rel="stylesheet" href="/static/css/call.css">
+
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding-top: 24px;
+            min-height: 90vh;
+        }
+    </style>
+
+    <script>
+        let myName;
+    </script>
+</head>
+
+<body>
+    <div>
+        <div>
+            <!-- to input username and login -->
+            <div id="userName">
+                <div style="display: flex; flex-direction: column; align-items: center; width: 300px;">
+                    <input placeholder="What should we call you?"
+                        style="text-align:center; height: 50px; font-size: xx-large;" type="text" name=""
+                        id="userNameInput">
+                    <div style="height: 5px;"></div>
+                    <button onclick="login()" class="actionButton">Login</button>
+                </div>
+            </div>
+
+            <!-- to display current login user information  -->
+            <div id="userInfo">
+                <div style="display: flex; flex-direction: column; align-items: center; width: 300px;">
+                    <h1>Hello, <span id="nameHere"></span></h1>
+                </div>
+
+            </div>
+
+            <!-- to make a call with name -->
+            <div id="call">
+                <div class="dialWrapper">
+                    <input placeholder="Whom to call?" style="text-align:center; height: 50px; font-size: xx-large;"
+                        type="text" name="callName" id="callName">
+                    <div class="dialNumpadHWrapper">
+                        <div class="dialNumber">
+                        </div>
+                        <div class="dialNumber">
+                            <button class="dialActionButton" onclick="call()">Call</button>
+                        </div>
+                        <div class="dialNumber">
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- to show incommming call and accept -->
+            <div id="answer">
+                <div class="incomingWrapper">
+                    <div class="itemWrapper">
+                        <h2>Incomming Call</h2>
+                    </div>
+                    <div class="itemWrapper">
+                        <img id="profileImageA" style="padding: 30px; width: 140px; height: 140px;"
+                            src="/static/images/profile.png" alt="">
+                    </div>
+                    <div class="itemWrapper">
+                        <h2 style="line-height: 0px;"><span id="callerName"></span></h2>
+                    </div>
+                    <div class="itemWrapper" style="display: flex; flex-direction: row; margin-bottom: 20px;">
+                        <button class="actionButton" onclick="answer()">Answer</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- to show outgoing call -->
+            <div id="calling">
+                <div class="incomingWrapper">
+                    <div class="itemWrapper">
+                        <h2>Calling</h2>
+                    </div>
+                    <div class="itemWrapper">
+                        <img id="profileImageCA" style="padding: 30px; width: 140px; height: 140px;"
+                            src="/static/images/profile.png" alt="">
+                    </div>
+                    <div class="itemWrapper">
+                        <h3 style="line-height: 0px;"><span id="otherUserNameCA"></span></h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- to show call in progress call -->
+            <div id="inCall">
+                <div class="incomingWrapper">
+                    <div class="itemWrapper">
+                        <h3>On Call With</h3>
+                        <h2 style="line-height: 0px;"><span id="otherUserNameC"></span></h2>
+                    </div>
+                </div>
+            </div>
+
+            <br>
+
+            <!-- to show local and remote video -->
+            <div id="videos">
+                <div style="position:absolute; top:0; right:0; padding-right: 20px; padding-top: 20px">
+                    <video width="100px" id="localVideo" autoplay muted playsinline></video>
+                </div>
+                <div id="remoteVideoDiv">
+                    <video style="width: 500px;" id="remoteVideo" autoplay playsinline></video>
+                </div>
+            </div>
+            <div style="flex-grow: 1;">
+            </div>
+        </div>
+
+
+
+
+
+    </div>
+    <div style="flex-grow: 1;">
+    </div>
+    <div>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <a href="https://www.youtube.com/watch?v=N7lbtbmqLvM">
+                Video Call in Django with WebRTC and Django Channels (Video Guide)
+            </a>
+            <a href="https://www.bloggernepal.com/2021/10/video-call-in-django-with-webrtc-and-channels.html">
+                Video Call in Django with WebRTC and Channels (Article)
+            </a>
+            <a href="https://www.bloggernepal.com/2021/05/setup-stun-and-turn-server-on-ubuntu.html">
+                Setup STUN and TURN server on Ubuntu
+            </a>
+            <a href="https://github.com/InfoDevkota/WebRTC-Django-Django-Channels-Video-Call">
+                Github Repository
+            </a>
+        </div>
+    </div>
+
+
+    <script src="/static/js/stream.js"></script>
+    <script>
+        document.getElementById("call").style.display = "none";
+        document.getElementById("userInfo").style.display = "none";
+        document.getElementById("answer").style.display = "none";
+        document.getElementById("inCall").style.display = "none";
+        document.getElementById("calling").style.display = "none";
+        document.getElementById("videos").style.display = "none";
+
+    </script>
+    <script>
+        function login() {
+            let userName = document.getElementById("userNameInput").value;
+            myName = userName;
+            document.getElementById("userName").style.display = "none";
+            document.getElementById("call").style.display = "block";
+
+            document.getElementById("nameHere").innerHTML = userName;
+            document.getElementById("userInfo").style.display = "block";
+
+            connectSocket();
+        }
+
+        const baseUrl = "/"
+
+        let localVideo = document.querySelector('#localVideo');
+        let remoteVideo = document.querySelector('#remoteVideo');
+
+        let otherUSer;
+        let remoteRTCMessage;
+        let iceCandidatesFromCaller = [];
+        let peerConnection;
+        let remoteStream;
+        let localStream;
+
+        let callInProgress = false;
+
+        function call() {
+            let userToCall = document.getElementById('callName').ariaValueMax;
+            otherUSer = userToCall;
+
+            beReady().then(bool => {
+                processCall(userToCall);
+            });
+        }
+
+        function answer() {
+            beReady().then(bool => {
+                processAccept();
+            });
+        }
+
+        let pcConfig = {
+            "iceServers": [
+                { "url": "stun:127.0.0.1:8080" },
+                {
+                    "url": "turn:127.0.0.1:8080",
+                    "username": "guest",
+                    "credential": "somepassword"
+                },
+                { "url": "stun:stun.1.google.com:19302" }
+            ]
+        };
+
+        let sdpConstraints = {
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+        };
+
+        let socket;
+        let callSocket;
+
+        function connectSocket(myName) {
+            let ws_scheme = window.location.protocol == "https:" ? "wss://" : "ws://";
+
+            callSocket = new WebSocket(
+                ws_scheme
+                + window.location.host
+                + '/ws/call/'
+            );
+
+            callSocket.onopen = event => {
+                callSocket.send(JSON.stringify({
+                    type: 'login',
+                    data: {
+                        name: myName
+                    }
+                }));
+            }
+
+            callSocket.onmessage = (e) => {
+                let response = JSON.parse(e.data);
+                let type = response.type;
+                if (type == 'connection') {
+                    console.log(response.data.message);
+                }
+                if (type == 'call_received') {
+                    onNewCall(response.data);
+                }
+                if (type == 'call_answered') {
+                    onCallAnswered(response.data);
+                }
+                if (type == 'ICEcandidate') {
+                    onICECandidate(response.data);
+                }
+
+            }
+
+            const onNewCall = (data) => {
+                otherUSer = data.caller;
+                remoteRTCMessage = data.rtcMessage;
+
+                document.getElementById('callerName').innerHTML = otherUSer;
+                document.getElementById('call').style.display = "none";
+                document.getElementById('answer').style.display = 'block';
+            }
+
+            const onCallAnswered = (data) => {
+                remoteRTCMessage = data.rtcMessage;
+                peerConnection.setRemoteDescription(new RTCSessionDescription(remoteRTCMessage));
+
+                document.getElementById('calling').style.display = "none";
+
+                console.log("Call Started. They Answered!");
+
+                callProgress();
+            }
+
+            const onICECandidate = (data) => {
+                console.log("Got ICE Candidate");
+
+                let message = data.rtcMessage;
+                let candidate = new RTCIceCandidate({
+                    sdpMLineIndex: message.label,
+                    candidate: message.candidate
+                });
+
+                if (peerConnection) {
+                    console.log("ICE Candidate Added");
+                    peerConnection.addIceCandidate(candidate);
+                } else {
+                    console.log("ICE Candidate Pushed");
+                    iceCandidatesFromCaller.push(candidate);
+                }
+            }
+        }
+
+        /**
+         * @param {Object} data
+         * @param {number} data.name - the name of the useer to call
+         * @param {Object} data.rtcMessage - answer rec sessionDescription object
+        */
+
+
+        function sendCall(data) {
+            console.log("Send Call");
+            callSocket.send(JSON.stringify({
+                type: 'call',
+                data
+            }));
+
+            document.getElementById('call').style.display = "none";
+            document.getElementById('otherUserNameCA').innerHTML = otherUSer;
+            document.getElementById("calling").style.display = "block";
+        }
+
+        /**
+         * 
+         * @param {Object} data
+         * @param {number} data.caller
+         * @param {Object} data.rtcMessage
+        */
+
+        function answerCall(data) {
+            callSocket.send(JSON.stringify({
+                type: 'answer_call',
+                data
+            }));
+            callProgress();
+        }
+
+        /**
+         * @param {Object} data
+         * @param {number} data.user
+         * @param {Object} data.rtcMessage
+        */
+
+        function sendICEcandidate(data) {
+            console.log('Send ICE Candidate');
+            callSocket.send(JSON.stringify({
+                type: 'ICEcandidate',
+                data
+            }));
+        }
+
+        function beReady() {
+            return navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: true
+            }).then(stream => {
+                localStream = stream;
+                localVideo.srcObject = stream;
+
+                return createConnectionAndAddStream();
+            }).catch(function (e) {
+                alert('getUserMedia() error: ' + e.name);
+            });
+        }
+
+        function createConnectionAndAddStream() {
+            createPeerConnection();
+            peerConnection.addStream(localStream);
+            return true;
+        }
+
+        function processCall(userName) {
+            peerConnection.createOffer((sessionDescription) => {
+                peerConnection.setLocalDescription(sessionDescription);
+                sendCall({
+                    name: userName,
+                    rtcMessage: sessionDescription
+                }, (error) => {
+                    console.log("Error");
+                });
+
+            });
+        }
+
+        function processAccept() {
+            peerConnection.setRemoteDescription(new RTCSessionDescription(remoteRTCMessage));
+            peerConnection.createAnswer((sessionDescription) => {
+                peerConnection.setLocalDescription(sessionDescription);
+
+                if (iceCandidatesFromCaller.length > 0) {
+                    for (let i = 0; i < iceCandidatesFromCaller.length; i++) {
+                        let candidate = iceCandidatesFromCaller[i];
+                        console.log("ICE candidate added from queue");
+                        try {
+                            peerConnection.addIceCandidate(candidate).then(done => {
+                                console.log(done);
+                            }).catch(error => {
+                                console.log(error);
+                            });
+                        } catch (error) {
+                            console.log(error);
+                        }
+                    }
+                    iceCandidatesFromCaller = [];
+                    console.log("ICE Candidate queue cleared.");
+                } else {
+                    console.log("No Ice Candidate in queue.");
+                }
+
+                answerCall({
+                    caller: otherUSer,
+                    rtcMessage: sessionDescription
+                });
+            }, (error) => {
+                console.log("Error");
+            });
+        }
+
+        function createPeerConnection() {
+            try {
+                peerConnection = new RTCPeerConnection(pcConfig);
+                peerConnection.onicecandidate = handleIceCandidate;
+                peerConnection.onaddstream = handleRemoteStreamAdded;
+                peerConnection.onremovestream = handleRemoteStreamRemoved;
+                console.log('Create RTCPeerConnection');
+                return;
+            } catch (e) {
+                console.log('Failed to create PeerConnection, exception: ' + e.message);
+                alert('Cannot create RTCPeerConnection object.');
+                return;
+            }
+        }
+
+        function handleIceCandidate(event) {
+            if (event.candidate) {
+                console.log("Local ICE Candidate");
+                sendICEcandidate({
+                    user: otherUSer,
+                    rtcMessage: {
+                        label: event.candidate.sdpMLineIndex,
+                        id: event.candidate.sdpMid,
+                        candidate: event.candidate.candidate
+                    }
+                });
+            } else {
+                console.log('End of Candidates.');
+            }
+        }
+
+        function handleRemoteStreamAdded(event) {
+            console.log('Remote Stream Added!');
+            remoteStream = event.stream;
+            remoteVideo.srcObject = remoteStream;
+        }
+
+        function handleRemoteStreamRemoved(event) {
+            console.log('Remote Stream removed. Event: ', event);
+            remoteVideo.srcObject = null;
+            localVideo.srcObject = null;
+        }
+
+        window.onbeforeunload = function () {
+            if (callInProgress) {
+                stop();
+            }
+        }
+
+        function stop() {
+            localStream.getTracks().forEach(track => track.stop());
+            callInProgress = false;
+            peerConnection.close();
+            peerConnection = null;
+            document.getElementById('call').style.display = "block";
+            document.getElementById('answer').style.display = "none";
+            document.getElementById('inCall').style.display = "none";
+            document.getElementById('calling').style.display = "none";
+            document.getElementById('endVideoButton').style.display = "none";
+            otherUSer = null;
+        }
+
+        function callProgress() {
+            document.getElementById('videos').style.display = "block";
+            document.getElementById('otherUserNameC').innerHTML = otherUSer;
+            document.getElementById('inCall').style.display = "block";
+
+            callInProgress = true;
+        }
+    </script>
+</body>
+
+</html>
